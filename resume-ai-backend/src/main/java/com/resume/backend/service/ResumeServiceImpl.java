@@ -1,41 +1,57 @@
 package com.resume.backend.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.json.JSONObject;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Service
 public class ResumeServiceImpl implements ResumeService {
 
-    private ChatClient chatClient;
+    private final WebClient groqWebClient;
+    private final ObjectMapper objectMapper;
 
-    public ResumeServiceImpl(ChatClient.Builder builder) {
-        this.chatClient = builder.build();
+    public ResumeServiceImpl(WebClient groqWebClient, ObjectMapper objectMapper) {
+        this.groqWebClient = groqWebClient;
+        this.objectMapper = objectMapper;
     }
 
     @Override
-    public   Map<String, Object> generateResumeResponse(String userResumeDescription) throws IOException {
-
+    public Map<String, Object> generateResumeResponse(String userResumeDescription) throws IOException {
         String promptString = this.loadPromptFromFile("resume_prompt.txt");
         String promptContent = this.putValuesToTemplate(promptString, Map.of(
                 "userDescription", userResumeDescription
         ));
-        Prompt prompt = new Prompt(promptContent);
-        String response = chatClient.prompt(prompt).call().content();
-        Map<String, Object> stringObjectMap = parseMultipleResponses(response);
-        //modify :
-        return stringObjectMap;
-    }
 
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("model", "mixtral-8x7b-32768");
+        requestBody.put("messages", List.of(
+                Map.of("role", "user", "content", promptContent)
+        ));
+        requestBody.put("temperature", 0.7);
+
+        String response = groqWebClient.post()
+                .uri("/chat/completions")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        Map<String, Object> responseMap = objectMapper.readValue(response, Map.class);
+        List<?> choices = (List<?>) responseMap.get("choices");
+        Map<String, ?> firstChoice = (Map<String, ?>) choices.get(0);
+        Map<String, String> message = (Map<String, String>) firstChoice.get("message");
+        String content = message.get("content");
+
+        return parseMultipleResponses(content);
+    }
 
     String loadPromptFromFile(String filename) throws IOException {
         Path path = new ClassPathResource(filename).getFile().toPath();
