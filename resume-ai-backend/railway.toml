@@ -1,8 +1,9 @@
 [build]
-builder = "NIXPACKS"
-buildCommand = "mvn clean install"
+builder = "JAVA"
+buildCommand = "./mvnw clean install"
 
 [deploy]
-startCommand = "java -jar target/resume-ai-backend-0.0.1-SNAPSHOT.jar"
+startCommand = "java -Dserver.port=$PORT -jar target/resume-ai-backend-0.0.1-SNAPSHOT.jar"
+restartPolicyType = "ON_FAILURE"
 healthcheckPath = "/"
 healthcheckTimeout = 100
