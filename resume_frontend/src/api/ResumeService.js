@@ -1,6 +1,6 @@
 import axios from "axios";
 
-export const baseURLL = "http://localhost:8080";
+export const baseURLL = "https://resume-production-e7b0.up.railway.app";
 
 export const axiosInstance = axios.create({
   baseURL: baseURLL,
